@@ -954,22 +954,13 @@ class SyncWorker:
         if not stash_url:
             raise PermanentError(f"Job {scene_id} missing file path and stash_url is not configured")
 
-        query = """
-        query FindScene($id: ID!) {
-            findScene(id: $id) {
-                title
-                details
-                date
-                rating100
-                files { path }
-                studio { name }
-                performers { name }
-                tags { name }
-            }
-        }
-        """
+        # Reuse the hook path's query rather than a second hand-rolled one: it
+        # carries paths/custom_fields/groups, which the poster cascade needs.
+        # A private query here silently dropped artwork from every deferred job.
+        from hooks.handlers import SCENE_QUERY
+
         payload = {
-            'query': query,
+            'query': SCENE_QUERY,
             'variables': {'id': str(scene_id)},
         }
 
@@ -993,25 +984,17 @@ class SyncWorker:
         if not scene:
             raise PermanentError(f"Scene {scene_id} not found in Stash during deferred hydration")
 
-        files = scene.get('files') or []
-        path = files[0].get('path') if files and isinstance(files[0], dict) else None
+        # Build job data through the shared extractor so deferred jobs are
+        # byte-for-byte equivalent to the ones bulk sync and reconciliation
+        # produce — including poster_url/poster_origin and background_url.
+        from validation.scene_extractor import extract_scene_metadata, get_scene_file_path
+
+        path = get_scene_file_path(scene)
         if not path:
             raise PermanentError(f"Scene {scene_id} has no file path during deferred hydration")
 
-        studio = scene.get('studio') or {}
-        performers = [p.get('name') for p in (scene.get('performers') or []) if isinstance(p, dict) and p.get('name')]
-        tags = [t.get('name') for t in (scene.get('tags') or []) if isinstance(t, dict) and t.get('name')]
-
-        hydrated = {
-            'path': path,
-            'title': scene.get('title'),
-            'details': scene.get('details'),
-            'date': scene.get('date'),
-            'rating100': scene.get('rating100'),
-            'studio': studio.get('name') if isinstance(studio, dict) else None,
-            'performers': performers,
-            'tags': tags,
-        }
+        hydrated = extract_scene_metadata(scene)
+        hydrated['path'] = path
         return hydrated
 
     def _process_job(self, job: dict) -> Optional[str]:

@@ -44,7 +44,7 @@ jobs:
       - name: Build plugin zip
         run: |
           zip -r Stash2Plex.zip \
-            Stash2Plex.py Stash2Plex.yml requirements.txt \
+            Stash2Plex.py Stash2Plex.yml poster_source.py requirements.txt \
             worker/ sync_queue/ plex/ validation/ shared/ hooks/ reconciliation/ \
             -x '*/test*' '*/__pycache__/*' '*.pyc' '*/.pytest*'
 

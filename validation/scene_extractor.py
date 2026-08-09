@@ -8,6 +8,8 @@ reconciliation/engine.py (gap detection).
 
 from typing import Any, Optional
 
+from poster_source import poster_url_from_scene
+
 
 def extract_scene_metadata(scene: dict[str, Any]) -> dict[str, Any]:
     """Extract flat metadata dict from a Stash GraphQL scene response.
@@ -41,10 +43,16 @@ def extract_scene_metadata(scene: dict[str, Any]) -> dict[str, Any]:
     if tags:
         data['tags'] = [t.get('name') for t in tags if t.get('name')]
 
+    # Poster cascades: hand-cropped custom field -> group front art -> the 16:9
+    # cover. Queries that don't request poster_source.SCENE_FIELDS see neither
+    # of the first two and fall through to the cover, i.e. the old behaviour.
+    poster_url, poster_origin, _ = poster_url_from_scene(scene)
+    if poster_url:
+        data['poster_url'] = poster_url
+        data['poster_origin'] = poster_origin
+
     paths = scene.get('paths', {})
     if paths:
-        if paths.get('screenshot'):
-            data['poster_url'] = paths['screenshot']
         if paths.get('preview'):
             data['background_url'] = paths['preview']
 

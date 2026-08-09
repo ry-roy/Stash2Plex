@@ -257,11 +257,13 @@ class GapDetectionEngine:
             created_at
             rating100
             updated_at
+            custom_fields
             files { path }
             studio { name }
             performers { name }
             tags { name }
             paths { screenshot preview }
+            groups { group { id name front_image_path } }
         """
 
         if scope == "recent":

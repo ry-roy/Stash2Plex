@@ -57,6 +57,14 @@ query FindScene($id: ID!) {
             screenshot
             preview
         }
+        custom_fields
+        groups {
+            group {
+                id
+                name
+                front_image_path
+            }
+        }
     }
 }
 """
