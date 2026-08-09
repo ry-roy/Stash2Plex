@@ -38,6 +38,16 @@ def extract_scene_metadata(scene: dict[str, Any]) -> dict[str, Any]:
     performers = scene.get('performers', [])
     if performers:
         data['performers'] = [p.get('name') for p in performers if p.get('name')]
+        # Keyed by name rather than positionally aligned with the list above:
+        # the Plex actor edit is name-keyed too, so a map survives the
+        # filtering, sanitising and truncation that happens in between.
+        images = {
+            p['name']: p['image_path']
+            for p in performers
+            if p.get('name') and p.get('image_path')
+        }
+        if images:
+            data['performer_images'] = images
 
     tags = scene.get('tags', [])
     if tags:

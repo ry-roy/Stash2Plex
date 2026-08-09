@@ -93,6 +93,14 @@ settings:
     displayName: Plex Library
     description: "Plex library name(s) to sync. Comma-separated for multiple (e.g., 'Adult' or 'Adult, Movies'). Leave empty to search all libraries."
     type: STRING
+  thumbor_base_url:
+    displayName: Performer Thumbor Base URL
+    description: "Thumbor server origin (e.g. http://thumbor.lan:8001). Plex is handed a Thumbor URL that face-crops the performer image to a square. Leave empty to disable performer thumbnails."
+    type: STRING
+  performer_image_source_base_url:
+    displayName: Performer Image Source Base URL
+    description: "Origin Thumbor should use to reach Stash (e.g. http://stash:9999). Stash reports image URLs on the address this plugin reaches it on, which is often not reachable from Thumbor. Leave empty to use the address Stash reports."
+    type: STRING
   enabled:
     displayName: Enabled
     description: "Enable or disable the plugin (default: true)"

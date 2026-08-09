@@ -6,7 +6,7 @@ with fail-fast behavior and sensible defaults.
 """
 
 from pydantic import BaseModel, Field, field_validator, ValidationError
-from typing import Optional
+from typing import Any, Optional
 
 from shared.log import create_logger
 _, log_debug, log_info, log_warn, _ = create_logger("Config")
@@ -190,6 +190,38 @@ class Stash2PlexConfig(BaseModel):
         default=None,
         description="Stash session cookie for authenticated image fetching"
     )
+
+    # Performer thumbnails (see shared/thumbor.py)
+    thumbor_base_url: Optional[str] = Field(
+        default=None,
+        description="Thumbor server origin, e.g. http://thumbor.lan:8001. "
+                    "Empty disables performer thumbnail sync."
+    )
+    performer_image_source_base_url: Optional[str] = Field(
+        default=None,
+        description="Origin Thumbor should use to reach Stash, e.g. http://stash:9999. "
+                    "Empty keeps the address Stash reports, which is usually only "
+                    "reachable from this plugin, not from Thumbor."
+    )
+
+    @field_validator('thumbor_base_url', 'performer_image_source_base_url', mode='before')
+    @classmethod
+    def normalize_origin(cls, v: Any) -> Optional[str]:
+        """Trim, drop trailing slash, and treat blank as unset.
+
+        Both settings are origins, not URLs with a path: only the scheme and
+        host[:port] are ever used. An unusable value disables the feature rather
+        than failing the whole config, which would take metadata sync down too.
+        """
+        if v is None:
+            return None
+        v = str(v).strip().rstrip('/')
+        if not v:
+            return None
+        if not v.startswith(('http://', 'https://')):
+            log_warn(f"Ignoring thumbnail URL setting without http(s):// scheme: {v}")
+            return None
+        return v
 
     @field_validator('plex_url', mode='after')
     @classmethod

@@ -260,7 +260,7 @@ class GapDetectionEngine:
             custom_fields
             files { path }
             studio { name }
-            performers { name }
+            performers { name image_path }
             tags { name }
             paths { screenshot preview }
             groups { group { id name front_image_path } }

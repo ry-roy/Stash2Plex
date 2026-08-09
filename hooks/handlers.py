@@ -48,6 +48,7 @@ query FindScene($id: ID!) {
         performers {
             id
             name
+            image_path
         }
         tags {
             id
@@ -284,7 +285,8 @@ def on_scene_update(
         }
 
         # Add optional fields if present
-        for field in ['details', 'rating100', 'date', 'studio', 'performers', 'tags']:
+        for field in ['details', 'rating100', 'date', 'studio', 'performers',
+                      'performer_images', 'tags']:
             if field in update_data and update_data[field] is not None:
                 validation_data[field] = update_data[field]
 

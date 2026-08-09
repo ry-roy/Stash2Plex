@@ -1434,6 +1434,7 @@ class SyncWorker:
 
         LOCKED: If 'performers' key exists with empty/None, clear all actors.
         """
+        from shared.thumbor import performer_thumb_url
         from validation.limits import MAX_PERFORMER_NAME_LENGTH, MAX_PERFORMERS
         from validation.sanitizers import sanitize_for_plex
 
@@ -1464,14 +1465,41 @@ class SyncWorker:
             if _dbg:
                 log_info(f"[DEBUG] Performers: current={current_actors}, new={new_performers}")
 
-            if new_performers:
-                all_actors = current_actors + new_performers
-                if len(all_actors) > MAX_PERFORMERS:
-                    log_warn(f"Truncating combined actors list from {len(all_actors)} to {MAX_PERFORMERS}")
-                    all_actors = all_actors[:MAX_PERFORMERS]
+            all_actors = current_actors + new_performers
+            if len(all_actors) > MAX_PERFORMERS:
+                log_warn(f"Truncating combined actors list from {len(all_actors)} to {MAX_PERFORMERS}")
+                all_actors = all_actors[:MAX_PERFORMERS]
+
+            # Key thumbs by the sanitised name, since that is what reaches Plex.
+            thumbs = {}
+            for raw_name, image_path in (data.get('performer_images') or {}).items():
+                url = performer_thumb_url(
+                    image_path,
+                    getattr(self.config, 'thumbor_base_url', None),
+                    getattr(self.config, 'performer_image_source_base_url', None),
+                )
+                if url:
+                    thumbs[sanitize_for_plex(raw_name, max_length=MAX_PERFORMER_NAME_LENGTH)] = url
+
+            thumb_edits = {
+                f'actor[{i}].tag.thumb': thumbs[name]
+                for i, name in enumerate(all_actors)
+                if name in thumbs
+            }
+
+            # Thumbs alone are reason enough to edit: performers already present
+            # in Plex still need their artwork, and that is the common case once
+            # names have synced. Re-sending a thumb is idempotent — Plex rewrites
+            # actor.thumb to its own cached URL, so we cannot diff to skip it.
+            if new_performers or thumb_edits:
                 actor_edits = {f'actor[{i}].tag.tag': name for i, name in enumerate(all_actors)}
+                actor_edits.update(thumb_edits)
                 plex_item.edit(**actor_edits)
-                log_info(f"Added {len(new_performers)} performers: {new_performers}")
+                if new_performers:
+                    log_info(f"Added {len(new_performers)} performers: {new_performers}")
+                for i, name in enumerate(all_actors):
+                    if name in thumbs:
+                        log_info(f"Updated performer thumbnail: {name} -> {thumbs[name]}")
                 result.add_success('performers')
                 return True
             else:
