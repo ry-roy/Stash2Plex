@@ -101,6 +101,10 @@ settings:
     displayName: Performer Image Source Base URL
     description: "Origin Thumbor should use to reach Stash (e.g. http://stash:9999). Stash reports image URLs on the address this plugin reaches it on, which is often not reachable from Thumbor. Leave empty to use the address Stash reports."
     type: STRING
+  performer_thumb_transform:
+    displayName: Performer Thumb Transform
+    description: "Thumbor transform for performer images, without the 'unsafe/' prefix (e.g. 400x400/smart/filters:face_zoom(0.5)). Any filter must exist in your Thumbor build — an unknown one makes Thumbor 400 and Plex shows no thumbnail. Leave empty for the default 300x300/smart."
+    type: STRING
   enabled:
     displayName: Enabled
     description: "Enable or disable the plugin (default: true)"

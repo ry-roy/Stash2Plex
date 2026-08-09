@@ -5,6 +5,13 @@ All notable changes to Stash2Plex will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.17] - 2026-08-09
+
+### Added
+
+- **Configurable Performer Thumb Transform**: New `performer_thumb_transform` setting replaces the hardcoded `300x300/smart` Thumbor crop, so size, crop and filter chain can be tuned from Stash's plugin settings without editing source. Example: `400x400/smart/filters:face_zoom(0.5)`. Leaving it empty keeps the previous behaviour.
+- **Transform Validation**: Values are normalised (a pasted `unsafe/` prefix and surrounding slashes are stripped) and rejected when they contain `..` or characters outside Thumbor's path grammar. A rejected value logs a warning and falls back to the default crop, so a typo costs the custom framing rather than disabling performer thumbnails.
+
 ## [1.6.11] - 2026-05-09
 
 ### Fixed

@@ -5,6 +5,7 @@ Tests verify:
 - The Thumbor base URL acts as the feature switch
 - The whole source URL is percent-encoded into one path segment
 - Origin rewriting preserves the path and query string
+- A configured transform replaces the default crop, and a bad one falls back
 - Names survive sanitisation on their way to the thumb lookup
 - Performers already present in Plex still receive thumbnails
 - Performers without an image still sync by name
@@ -59,6 +60,80 @@ class TestPerformerThumbUrl:
 
     def test_without_source_base_the_stash_address_is_kept(self):
         assert "127.0.0.1" in performer_thumb_url(IMAGE, THUMBOR)
+
+
+FACE_ZOOM = "400x400/smart/filters:face_zoom(0.5)"
+
+
+class TestTransform:
+    """The crop is configurable; the default must survive a bad value."""
+
+    def test_configured_transform_replaces_the_default(self):
+        url = performer_thumb_url(IMAGE, THUMBOR, transform=FACE_ZOOM)
+
+        assert url.startswith(f"{THUMBOR}/unsafe/{FACE_ZOOM}/")
+        assert "300x300" not in url
+
+    def test_source_stays_one_segment_under_a_filter_chain(self):
+        """filters: chains contain ( ) : — none may split the source segment."""
+        url = performer_thumb_url(IMAGE, THUMBOR, transform=FACE_ZOOM)
+
+        assert url.split(f"{FACE_ZOOM}/", 1)[1].count("/") == 0
+
+    @pytest.mark.parametrize("transform", [None, "", "   ", "/"])
+    def test_empty_transform_falls_back_to_the_default(self, transform):
+        assert performer_thumb_url(IMAGE, THUMBOR, transform=transform) == \
+            performer_thumb_url(IMAGE, THUMBOR)
+
+    def test_surrounding_slashes_do_not_double_up(self):
+        url = performer_thumb_url(IMAGE, THUMBOR, transform="/400x400/smart/")
+
+        assert "/unsafe/400x400/smart/http" in url
+        assert "//" not in url.split("://", 1)[1]
+
+    def test_transform_composes_with_source_base(self):
+        url = performer_thumb_url(IMAGE, THUMBOR, "http://stash:9999", FACE_ZOOM)
+
+        assert f"/unsafe/{FACE_ZOOM}/" in url
+        assert "http%3A%2F%2Fstash%3A9999" in url
+
+
+class TestTransformValidation:
+    """A bad setting must cost the custom crop, not the whole feature."""
+
+    @staticmethod
+    def _normalized(value):
+        from validation.config import Stash2PlexConfig
+
+        config = Stash2PlexConfig(
+            plex_url="http://localhost:32400",
+            plex_token="x" * 24,
+            performer_thumb_transform=value,
+        )
+        return config.performer_thumb_transform
+
+    def test_valid_transform_is_kept(self):
+        assert self._normalized(FACE_ZOOM) == FACE_ZOOM
+
+    def test_unsafe_prefix_is_stripped(self):
+        """thumbor.py owns the prefix; a user pasting a full path is fine."""
+        assert self._normalized(f"/unsafe/{FACE_ZOOM}/") == FACE_ZOOM
+
+    @pytest.mark.parametrize("value", [
+        None, "", "   ",
+        "../../etc/passwd",       # traversal out of the transform segment
+        "400x400/smart evil",     # whitespace would break the URL
+        "400x400/smart?x=1",      # query would be read as part of the source
+        "400x400/smart#frag",
+    ])
+    def test_unusable_values_fall_back_to_the_default(self, value):
+        assert self._normalized(value) is None
+
+    def test_rejected_transform_still_yields_the_default_url(self):
+        """End to end: the feature keeps working after a bad setting."""
+        url = performer_thumb_url(IMAGE, THUMBOR, transform=self._normalized(".."))
+
+        assert "/unsafe/300x300/smart/" in url
 
 
 class TestSceneExtractor:
@@ -116,7 +191,7 @@ class _FakeResult:
         self.warnings.append((field, err))
 
 
-def _worker(thumbor_base=THUMBOR, source_base=None):
+def _worker(thumbor_base=THUMBOR, source_base=None, transform=None):
     """A SyncWorker with only the config _sync_performers touches."""
     from worker.processor import SyncWorker
 
@@ -124,6 +199,7 @@ def _worker(thumbor_base=THUMBOR, source_base=None):
     worker.config = type('Config', (), {
         'thumbor_base_url': thumbor_base,
         'performer_image_source_base_url': source_base,
+        'performer_thumb_transform': transform,
     })()
     return worker
 
@@ -185,6 +261,31 @@ class TestSyncPerformers:
 
         assert item.edits['actor[1].tag.tag'] == 'Bob'
         assert 'actor[1].tag.thumb' not in item.edits
+
+    def test_configured_transform_reaches_the_edit(self):
+        """The setting must actually be threaded through, not just accepted."""
+        item = _FakePlexItem()
+        _worker(transform=FACE_ZOOM)._sync_performers(
+            item,
+            {'performers': ['Alice'], 'performer_images': {'Alice': IMAGE}},
+            _FakeResult(), False,
+        )
+
+        assert f"/unsafe/{FACE_ZOOM}/" in item.edits['actor[0].tag.thumb']
+
+    def test_config_without_the_field_uses_the_default(self):
+        """Older configs predate the setting; getattr must not explode."""
+        item = _FakePlexItem()
+        worker = _worker()
+        del type(worker.config).performer_thumb_transform
+
+        worker._sync_performers(
+            item,
+            {'performers': ['Alice'], 'performer_images': {'Alice': IMAGE}},
+            _FakeResult(), False,
+        )
+
+        assert "/unsafe/300x300/smart/" in item.edits['actor[0].tag.thumb']
 
     def test_thumb_lookup_survives_name_sanitisation(self):
         """Names are sanitised before reaching Plex; the map must follow."""

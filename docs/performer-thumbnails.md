@@ -28,14 +28,44 @@ The generated URL looks like:
 first — and centres the crop on the face it finds, falling back to entropy when
 it finds none.
 
+The `300x300/smart` part is the **transform**, and it is configurable — see below.
+
 ## Settings
 
 | Setting | Example | Purpose |
 |---|---|---|
 | Performer Thumbor Base URL | `http://thumbor.lan:8001` | Your Thumbor origin. Empty disables the feature. |
 | Performer Image Source Base URL | `http://stash:9999` | Origin Thumbor should use to reach Stash. Optional. |
+| Performer Thumb Transform | `400x400/smart/filters:face_zoom(0.5)` | Crop/filter chain. Empty uses `300x300/smart`. |
 
-### Why the second setting exists
+### Choosing a transform
+
+Write the transform exactly as Thumbor's path grammar expects it, **without** the
+`unsafe/` prefix — the plugin adds that. Order is
+`<trim>/<crop>/<fit-in>/<WxH>/<align>/<smart>/filters:<chain>`, so filters always
+come last:
+
+```text
+300x300/smart                            # the default
+400x400/smart/filters:face_zoom(0.5)     # tighter framing on the detected face
+fit-in/400x400/filters:fill(white)       # letterbox instead of crop
+```
+
+Two things to watch:
+
+- **Any filter you name must exist in your Thumbor build.** `face_zoom` is not a
+  stock filter. An unknown one makes Thumbor return 400, and because *Plex*
+  fetches the URL, this plugin never sees the failure — you just get no
+  thumbnail. Test the URL in a browser before trusting it.
+- **Dropping `smart` disables detector-based cropping.** If your filter depends
+  on a detected face, keep `smart` in the transform.
+
+A value that is empty, contains `..`, or uses characters outside
+`A-Z a-z 0-9 _ ( ) : , . - / x` is rejected with a warning in the Stash log and
+the default transform is used instead. A typo costs you the custom crop, not the
+whole feature.
+
+### Why the source base setting exists
 
 Stash reports image URLs on the address *this plugin* reaches it on — commonly
 `http://127.0.0.1:9999`. Inside the Thumbor container, `127.0.0.1` is Thumbor
@@ -80,5 +110,7 @@ Check in this order:
 2. **Can Thumbor fetch the source?** Percent-decode the last path segment of the
    generated URL and request it from Thumbor's own network context.
 3. **Does the URL render?** Open the Thumbor URL directly in a browser. A 200 and
-   a 300×300 image means the plugin's work is done.
+   an image at the size your transform asked for means the plugin's work is done.
+   A 400 here usually means a filter your Thumbor build does not have — check the
+   Thumbor log and the transform setting.
 4. **Only then look at Plex**, which caches artwork aggressively.

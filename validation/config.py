@@ -5,11 +5,19 @@ Provides pydantic v2 models for validating plugin configuration
 with fail-fast behavior and sensible defaults.
 """
 
+import re
+
 from pydantic import BaseModel, Field, field_validator, ValidationError
 from typing import Any, Optional
 
 from shared.log import create_logger
 _, log_debug, log_info, log_warn, _ = create_logger("Config")
+
+# Everything Thumbor allows in the transform part of a path: dimensions, the
+# smart/fit-in/align keywords, and a filters: chain. Deliberately narrow — the
+# value is injected into a URL that *Plex* fetches, so a bad one surfaces as a
+# silent 400 with no thumbnail rather than an error this plugin can see.
+THUMBOR_TRANSFORM_RE = re.compile(r'^[A-Za-z0-9_():,.\-/x]+$')
 
 
 class Stash2PlexConfig(BaseModel):
@@ -203,6 +211,33 @@ class Stash2PlexConfig(BaseModel):
                     "Empty keeps the address Stash reports, which is usually only "
                     "reachable from this plugin, not from Thumbor."
     )
+    performer_thumb_transform: Optional[str] = Field(
+        default=None,
+        description="Thumbor transform applied to performer images, e.g. "
+                    "400x400/smart/filters:face_zoom(0.5). Empty uses the "
+                    "built-in default (see shared/thumbor.py)."
+    )
+
+    @field_validator('performer_thumb_transform', mode='before')
+    @classmethod
+    def normalize_transform(cls, v: Any) -> Optional[str]:
+        """Trim to a bare path segment; treat blank or malformed as unset.
+
+        Unset falls back to shared.thumbor's default rather than disabling
+        thumbnails, so a typo here costs the custom crop, not the feature.
+        """
+        if v is None:
+            return None
+        v = str(v).strip().strip('/')
+        if not v:
+            return None
+        if v.startswith('unsafe/'):
+            # The signing prefix is thumbor.py's to add, not the user's.
+            v = v[len('unsafe/'):]
+        if '..' in v or not THUMBOR_TRANSFORM_RE.match(v):
+            log_warn(f"Ignoring malformed Thumbor transform, using default: {v}")
+            return None
+        return v
 
     @field_validator('thumbor_base_url', 'performer_image_source_base_url', mode='before')
     @classmethod

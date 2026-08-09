@@ -1477,6 +1477,7 @@ class SyncWorker:
                     image_path,
                     getattr(self.config, 'thumbor_base_url', None),
                     getattr(self.config, 'performer_image_source_base_url', None),
+                    getattr(self.config, 'performer_thumb_transform', None),
                 )
                 if url:
                     thumbs[sanitize_for_plex(raw_name, max_length=MAX_PERFORMER_NAME_LENGTH)] = url

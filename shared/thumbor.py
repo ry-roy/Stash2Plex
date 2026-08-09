@@ -12,11 +12,12 @@ from urllib.parse import quote
 from poster_source import _rebase
 
 # Thumbor's smart crop runs its configured detectors (face first) and centres the
-# crop on what it finds, falling back to entropy when it finds nothing.
-THUMB_PATH = "unsafe/300x300/smart"
+# crop on what it finds, falling back to entropy when it finds nothing. This is the
+# fallback when no transform is configured, so it stays on stock Thumbor features.
+DEFAULT_TRANSFORM = "300x300/smart"
 
 
-def performer_thumb_url(image_path, thumbor_base, source_base=None):
+def performer_thumb_url(image_path, thumbor_base, source_base=None, transform=None):
     """Wrap a Stash performer image URL in an on-demand Thumbor face crop.
 
     Args:
@@ -27,6 +28,11 @@ def performer_thumb_url(image_path, thumbor_base, source_base=None):
             URLs on the address *this plugin* reaches it on (often 127.0.0.1),
             which means something different inside the Thumbor container. Set
             this to an address Thumbor can resolve, e.g. ``http://stash:9999``.
+        transform: Optional Thumbor transform path, e.g.
+            ``400x400/smart/filters:face_zoom(0.5)``. Falsy uses
+            ``DEFAULT_TRANSFORM``. Callers must hand this over already
+            validated (see Stash2PlexConfig.normalize_transform) — it goes
+            into the path verbatim.
 
     Returns:
         The Thumbor URL, or None when there is no image or no Thumbor configured.
@@ -36,7 +42,8 @@ def performer_thumb_url(image_path, thumbor_base, source_base=None):
     if not image_path or not thumbor_base:
         return None
 
+    transform = (transform or '').strip().strip('/') or DEFAULT_TRANSFORM
     source = _rebase(image_path, source_base) if source_base else image_path
     # Encode the whole source URL into a single path segment; its own scheme,
     # slashes and query string must not be read as part of the Thumbor path.
-    return f"{thumbor_base.rstrip('/')}/{THUMB_PATH}/{quote(source, safe='')}"
+    return f"{thumbor_base.rstrip('/')}/unsafe/{transform}/{quote(source, safe='')}"
