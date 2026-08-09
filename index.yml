@@ -1,14 +1,17 @@
-# Stash2Plex Plugin Index
+# Stash2Plex Plugin Index (ry-roy fork)
 # Add this URL as a plugin source in Stash:
-# https://raw.githubusercontent.com/trek-e/Stash2Plex/main/index.yml
+# https://raw.githubusercontent.com/ry-roy/Stash2Plex/main/index.yml
+#
+# Fork of trek-e/Stash2Plex carrying the poster cascade, the bulk-sync requeue
+# fix, and Thumbor-backed performer thumbnails. See docs/performer-thumbnails.md.
 
 - id: Stash2Plex
   name: Stash2Plex
   metadata:
     description: Sync metadata from Stash to Plex with queue-based reliability. Features persistent queue, automatic retry with exponential backoff, circuit breaker with outage recovery, health monitoring, selective field sync toggles, and multi-library support.
-  version: 1.6.15
-  date: "2026-06-16 23:04:29"
+  version: 1.6.16
+  date: "2026-08-09 01:47:06"
   path: Stash2Plex.zip
-  sha256: 3c3b282d5002acd81599f067ffd10ca5622e0996cd7ed518d3c60cac0c20cb06
+  sha256: 96549c99319a9c1f0148fa4c414f879ec5961a6d76f5a2f3cbc5866b3673602a
   requires:
     - PythonDepManager
