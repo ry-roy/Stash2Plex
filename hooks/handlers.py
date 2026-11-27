@@ -48,6 +48,7 @@ query FindScene($id: ID!) {
         performers {
             id
             name
+            image_path
         }
         tags {
             id
@@ -56,6 +57,14 @@ query FindScene($id: ID!) {
         paths {
             screenshot
             preview
+        }
+        custom_fields
+        groups {
+            group {
+                id
+                name
+                front_image_path
+            }
         }
     }
 }
@@ -280,7 +289,8 @@ def on_scene_update(
         }
 
         # Add optional fields if present
-        for field in ['details', 'rating100', 'date', 'studio', 'performers', 'tags']:
+        for field in ['details', 'rating100', 'date', 'studio', 'performers',
+                      'performer_images', 'tags']:
             if field in update_data and update_data[field] is not None:
                 validation_data[field] = update_data[field]
 
@@ -335,7 +345,7 @@ def on_scene_update(
                 sanitized_data['tags'] = []
 
             # Preserve any extra fields from original update_data that we don't validate
-            for key in ['studio_id', 'performer_ids', 'tag_ids', 'rating', 'path', 'poster_url', 'background_url']:
+            for key in ['studio_id', 'performer_ids', 'tag_ids', 'rating', 'path', 'poster_url', 'background_url', 'performer_images']:
                 if key in update_data:
                     sanitized_data[key] = update_data[key]
 

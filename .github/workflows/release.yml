@@ -58,13 +58,13 @@ jobs:
           EOF
           rm -f Stash2Plex.zip
           zip -r Stash2Plex.zip \
-            Stash2Plex.py Stash2Plex.yml requirements.txt BUILD_INFO.txt \
+            Stash2Plex.py Stash2Plex.yml poster_source.py requirements.txt BUILD_INFO.txt \
             worker/ sync_queue/ plex/ validation/ shared/ shared_lib/ hooks/ reconciliation/ \
             -x '*/test*' '*/__pycache__/*' '*.pyc' '*/.pytest*'
 
       - name: Verify plugin zip matches manifest
         run: |
-          ALLOWED="BUILD_INFO.txt Stash2Plex.py Stash2Plex.yml requirements.txt worker sync_queue plex validation shared shared_lib hooks reconciliation"
+          ALLOWED="BUILD_INFO.txt Stash2Plex.py Stash2Plex.yml poster_source.py requirements.txt worker sync_queue plex validation shared shared_lib hooks reconciliation"
 
           TOP_LEVEL=$(unzip -Z1 Stash2Plex.zip | awk -F/ '{print $1}' | sort -u)
 

@@ -263,8 +263,10 @@ class DirectStashInterface:
             query FindScene($id: ID!) {
                 findScene(id: $id) {
                     id title details urls date rating100
+                    custom_fields
                     files { path }
                     paths { screenshot stream }
+                    groups { group { id name front_image_path } }
                     studio { id name image_path parent_studio { id name details } }
                     performers { name image_path tags { id name } }
                     tags { id name }
@@ -1673,7 +1675,16 @@ def handle_bulk_sync(mode: str, stash):
             job_data = extract_scene_metadata(scene)
             job_data['path'] = file_path
 
-            result = queue_manager.try_enqueue(int(scene_id), "metadata", job_data)
+            # _is_already_synced above is the authoritative guard here: it compares
+            # Stash's updated_at against our sync timestamp. Once that has passed,
+            # a completed queue row must not veto the job — otherwise a bulk sync
+            # is a no-op for the whole 7-day completed_window. Same reasoning (and
+            # same flag) as reconciliation/engine.py. Pending/in-progress rows
+            # still block duplicates.
+            result = queue_manager.try_enqueue(
+                int(scene_id), "metadata", job_data,
+                dedup_recently_completed=False,
+            )
             if result.enqueued:
                 queued += 1
             else:
@@ -1702,11 +1713,13 @@ _BATCH_FRAGMENT = """
     date
     rating100
     updated_at
+    custom_fields
     files { path }
     studio { name }
-    performers { name }
+    performers { name image_path }
     tags { name }
     paths { screenshot preview }
+    groups { group { id name front_image_path } }
 """
 
 

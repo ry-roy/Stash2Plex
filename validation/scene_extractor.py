@@ -8,6 +8,8 @@ reconciliation/engine.py (gap detection).
 
 from typing import Any, Optional
 
+from poster_source import poster_url_from_scene
+
 
 def extract_scene_metadata(scene: dict[str, Any]) -> dict[str, Any]:
     """Extract flat metadata dict from a Stash GraphQL scene response.
@@ -42,14 +44,30 @@ def extract_scene_metadata(scene: dict[str, Any]) -> dict[str, Any]:
 
     performers = scene.get('performers') or []
     data['performers'] = [p.get('name') for p in performers if p.get('name')]
+    # Keyed by name rather than positionally aligned with the list above:
+    # the Plex actor edit is name-keyed too, so a map survives the
+    # filtering, sanitising and truncation that happens in between.
+    images = {
+        p['name']: p['image_path']
+        for p in performers
+        if p.get('name') and p.get('image_path')
+    }
+    if images:
+        data['performer_images'] = images
 
     tags = scene.get('tags') or []
     data['tags'] = [t.get('name') for t in tags if t.get('name')]
 
+    # Poster cascades: hand-cropped custom field -> group front art -> the 16:9
+    # cover. Queries that don't request poster_source.SCENE_FIELDS see neither
+    # of the first two and fall through to the cover, i.e. the old behaviour.
+    poster_url, poster_origin, _ = poster_url_from_scene(scene)
+    if poster_url:
+        data['poster_url'] = poster_url
+        data['poster_origin'] = poster_origin
+
     paths = scene.get('paths', {})
     if paths:
-        if paths.get('screenshot'):
-            data['poster_url'] = paths['screenshot']
         if paths.get('preview'):
             data['background_url'] = paths['preview']
 

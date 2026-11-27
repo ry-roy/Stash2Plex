@@ -54,6 +54,11 @@ class SyncMetadata(BaseModel):
     rating100: Optional[int] = Field(default=None, ge=0, le=100, description="Rating 0-100")
     studio: Optional[str] = Field(default=None, max_length=255, description="Studio name")
     performers: Optional[list[str]] = Field(default=None, description="Performer names")
+    # Deliberately not covered by sanitize_string_list below: these are URLs,
+    # not Plex display text, and sanitising would corrupt them.
+    performer_images: Optional[dict[str, str]] = Field(
+        default=None, description="Performer name -> Stash image_path"
+    )
     tags: Optional[list[str]] = Field(default=None, description="Tag names")
 
     @field_validator('title', mode='before')

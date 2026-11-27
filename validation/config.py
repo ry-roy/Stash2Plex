@@ -5,8 +5,10 @@ Provides pydantic v2 models for validating plugin configuration
 with fail-fast behavior and sensible defaults.
 """
 
+import re
+
 from pydantic import BaseModel, Field, field_validator, ValidationError, AliasChoices
-from typing import Optional
+from typing import Any, Optional
 
 from shared.log import create_logger
 _, log_debug, log_info, log_warn, _ = create_logger("Config")
@@ -16,6 +18,12 @@ _, log_debug, log_info, log_warn, _ = create_logger("Config")
 # box, and refusing to start is a worse outcome than a sane ceiling.
 CONNECT_TIMEOUT_MIN, CONNECT_TIMEOUT_MAX = 1.0, 30.0
 READ_TIMEOUT_MIN, READ_TIMEOUT_MAX = 5.0, 120.0
+
+# Everything Thumbor allows in the transform part of a path: dimensions, the
+# smart/fit-in/align keywords, and a filters: chain. Deliberately narrow — the
+# value is injected into a URL that *Plex* fetches, so a bad one surfaces as a
+# silent 400 with no thumbnail rather than an error this plugin can see.
+THUMBOR_TRANSFORM_RE = re.compile(r'^[A-Za-z0-9_():,.\-/x]+$')
 
 
 class Stash2PlexConfig(BaseModel):
@@ -212,6 +220,65 @@ class Stash2PlexConfig(BaseModel):
         default=None,
         description="Stash session cookie for authenticated image fetching"
     )
+
+    # Performer thumbnails (see shared/thumbor.py)
+    thumbor_base_url: Optional[str] = Field(
+        default=None,
+        description="Thumbor server origin, e.g. http://thumbor.lan:8001. "
+                    "Empty disables performer thumbnail sync."
+    )
+    performer_image_source_base_url: Optional[str] = Field(
+        default=None,
+        description="Origin Thumbor should use to reach Stash, e.g. http://stash:9999. "
+                    "Empty keeps the address Stash reports, which is usually only "
+                    "reachable from this plugin, not from Thumbor."
+    )
+    performer_thumb_transform: Optional[str] = Field(
+        default=None,
+        description="Thumbor transform applied to performer images, e.g. "
+                    "400x400/smart/filters:face_zoom(0.5). Empty uses the "
+                    "built-in default (see shared/thumbor.py)."
+    )
+
+    @field_validator('performer_thumb_transform', mode='before')
+    @classmethod
+    def normalize_transform(cls, v: Any) -> Optional[str]:
+        """Trim to a bare path segment; treat blank or malformed as unset.
+
+        Unset falls back to shared.thumbor's default rather than disabling
+        thumbnails, so a typo here costs the custom crop, not the feature.
+        """
+        if v is None:
+            return None
+        v = str(v).strip().strip('/')
+        if not v:
+            return None
+        if v.startswith('unsafe/'):
+            # The signing prefix is thumbor.py's to add, not the user's.
+            v = v[len('unsafe/'):]
+        if '..' in v or not THUMBOR_TRANSFORM_RE.match(v):
+            log_warn(f"Ignoring malformed Thumbor transform, using default: {v}")
+            return None
+        return v
+
+    @field_validator('thumbor_base_url', 'performer_image_source_base_url', mode='before')
+    @classmethod
+    def normalize_origin(cls, v: Any) -> Optional[str]:
+        """Trim, drop trailing slash, and treat blank as unset.
+
+        Both settings are origins, not URLs with a path: only the scheme and
+        host[:port] are ever used. An unusable value disables the feature rather
+        than failing the whole config, which would take metadata sync down too.
+        """
+        if v is None:
+            return None
+        v = str(v).strip().rstrip('/')
+        if not v:
+            return None
+        if not v.startswith(('http://', 'https://')):
+            log_warn(f"Ignoring thumbnail URL setting without http(s):// scheme: {v}")
+            return None
+        return v
 
     @field_validator('plex_url', mode='after')
     @classmethod
